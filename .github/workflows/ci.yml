@@ -11,14 +11,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build and start docker-compose
-        run: docker-compose up -d --build
+      - name: Build and start docker compose
+        run: docker compose up -d --build
       - name: Wait for web service
         run: |
           sleep 10
           curl -f http://localhost:5000 || exit 1
       - name: Run tests
         run: |
-          docker-compose exec -T web pytest
-      - name: Shutdown docker-compose
-        run: docker-compose down
+          docker compose exec -T web pytest
+      - name: Shutdown docker compose
+        run: docker compose down

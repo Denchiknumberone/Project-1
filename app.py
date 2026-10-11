@@ -3,8 +3,13 @@ import sqlite3
 app = Flask(__name__)
 DB = "users.db"
 
+def get_db_connection():
+    # Добавляем timeout, чтобы потоки не блокировали друг друга
+    conn = sqlite3.connect(DB, timeout=20)
+    return conn
+
 def init_db():
-    conn = sqlite3.connect(DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -18,7 +23,7 @@ def init_db():
 
 @app.route("/")
 def index():
-    conn = sqlite3.connect(DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, name, email FROM users")
     users = cursor.fetchall()
@@ -30,18 +35,22 @@ def register():
     if request.method == "POST":
         name = request.form["name"]
         email = request.form["email"]
-        conn = sqlite3.connect(DB)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", (name, email))
-        conn.commit()
-        conn.close()
+        try:
+            cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", (name, email))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+        finally:
+            conn.close()
         return redirect(url_for("index"))
     return render_template("register.html")
 
 # API
 @app.route("/api/users", methods=["GET"])
 def api_get_users():
-    conn = sqlite3.connect(DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, name, email FROM users")
     users = cursor.fetchall()
@@ -51,17 +60,21 @@ def api_get_users():
 @app.route("/api/users", methods=["POST"])
 def api_create_user():
     data = request.json
-    conn = sqlite3.connect(DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", (data["name"], data["email"]))
-    conn.commit()
-    user_id = cursor.lastrowid
-    conn.close()
-    return jsonify({"id": user_id, "name": data["name"], "email": data["email"]}), 201
+    try:
+        cursor.execute("INSERT INTO users (name, email) VALUES (?, ?)", (data["name"], data["email"]))
+        conn.commit()
+        user_id = cursor.lastrowid
+        conn.close()
+        return jsonify({"id": user_id, "name": data["name"], "email": data["email"]}), 201
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "User already exists"}), 400
 
 @app.route("/api/users/<int:user_id>", methods=["DELETE"])
 def api_delete_user(user_id):
-    conn = sqlite3.connect(DB)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()

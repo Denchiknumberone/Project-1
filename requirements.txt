@@ -1,0 +1,6 @@
+flask
+pytest
+pytest-html
+pytest-xdist
+requests
+selenium
